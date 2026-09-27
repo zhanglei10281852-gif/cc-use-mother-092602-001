@@ -293,6 +293,67 @@ CREATE TABLE IF NOT EXISTS compute_interventions (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_compute_interventions_task ON compute_interventions(task_id,id);
+
+CREATE TABLE IF NOT EXISTS payload_windows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    energy_budget_joules REAL NOT NULL CHECK(energy_budget_joules > 0),
+    max_power_watts REAL NOT NULL CHECK(max_power_watts > 0),
+    energy_used_joules REAL NOT NULL DEFAULT 0 CHECK(energy_used_joules >= 0),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    CHECK (ends_at > starts_at)
+);
+CREATE TABLE IF NOT EXISTS payload_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    requested_by TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    estimated_seconds INTEGER NOT NULL CHECK(estimated_seconds > 0),
+    remaining_seconds INTEGER NOT NULL CHECK(remaining_seconds >= 0),
+    power_watts REAL NOT NULL CHECK(power_watts > 0),
+    priority INTEGER NOT NULL DEFAULT 50 CHECK(priority BETWEEN 0 AND 100),
+    status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','paused','completed')),
+    window_id INTEGER REFERENCES payload_windows(id) ON DELETE RESTRICT,
+    worker_id TEXT NOT NULL DEFAULT '',
+    total_run_seconds INTEGER NOT NULL DEFAULT 0 CHECK(total_run_seconds >= 0),
+    energy_joules REAL NOT NULL DEFAULT 0 CHECK(energy_joules >= 0),
+    pause_count INTEGER NOT NULL DEFAULT 0 CHECK(pause_count >= 0),
+    started_at TEXT,
+    last_resumed_at TEXT,
+    finished_at TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(requested_by, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_payload_tasks_queue ON payload_tasks(status,priority DESC,created_at);
+CREATE INDEX IF NOT EXISTS idx_payload_tasks_window ON payload_tasks(window_id,status);
+CREATE TABLE IF NOT EXISTS payload_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL UNIQUE REFERENCES payload_tasks(id) ON DELETE CASCADE,
+    worker_id TEXT NOT NULL,
+    total_run_seconds INTEGER NOT NULL,
+    total_energy_joules REAL NOT NULL,
+    windows_used INTEGER NOT NULL,
+    result_summary TEXT NOT NULL DEFAULT '',
+    completed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payload_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    task_id INTEGER REFERENCES payload_tasks(id) ON DELETE CASCADE,
+    window_id INTEGER REFERENCES payload_windows(id) ON DELETE CASCADE,
+    actor TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payload_events_task ON payload_events(task_id,id);
+CREATE INDEX IF NOT EXISTS idx_payload_events_window ON payload_events(window_id,id);
+CREATE INDEX IF NOT EXISTS idx_payload_events_type ON payload_events(event_type,id);
 '''
 
 PERMISSIONS = [

@@ -12,6 +12,7 @@ from app.routers import affairs, announcements, departments, petitions, resident
 from app.seismic.router import router as seismic_router
 from app.seismic.service import ensure_schema as ensure_seismic_schema
 from app.compute.router import router as compute_router
+from app.payload.router import router as payload_router
 
 
 @asynccontextmanager
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI):
     close_connection()
 
 
-app = FastAPI(title="科学计算任务运营服务", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="科学计算任务运营服务", version="2.1.0", lifespan=lifespan)
 
 
 @app.exception_handler(DomainError)
@@ -51,8 +52,9 @@ app.include_router(departments.router)
 app.include_router(petitions.router)
 app.include_router(seismic_router)
 app.include_router(compute_router)
+app.include_router(payload_router)
 
 
 @app.get("/")
 def root() -> dict:
-    return {"service": "科学计算任务运营服务", "version": "2.0.0"}
+    return {"service": "科学计算任务运营服务", "version": "2.1.0"}
